@@ -1,0 +1,100 @@
+{
+  "scopeName": "source.warscript",
+  "name": "WarScript",
+  "fileTypes": ["ws"],
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#string" },
+    { "include": "#numeric" },
+    { "include": "#function-definition" },
+    { "include": "#class-definition" },
+    { "include": "#function-call" },
+    { "include": "#class-method-call" },
+    { "include": "#keyword-control" },
+    { "include": "#keyword-operator" },
+    { "include": "#constant-boolean" },
+    { "include": "#constant-null" },
+    { "include": "#variable-this" },
+    { "include": "#operator" },
+    { "include": "#range-operator" },
+    { "include": "#class-access-operator" },
+    { "include": "#variable" }
+  ],
+  "repository": {
+    "comment": {
+      "match": "#.*$",
+      "name": "comment.line.number-sign.warscript"
+    },
+    "string": {
+      "begin": "\"",
+      "end": "\"",
+      "name": "string.quoted.double.warscript"
+    },
+    "numeric": {
+      "match": "(?<![a-zA-Z_])(-?\\b[0-9]+(\\.[0-9]+)?\\b)",
+      "name": "constant.numeric.warscript"
+    },
+    "function-definition": {
+      "match": "\\b(fun)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+      "captures": {
+        "1": { "name": "keyword.control.warscript" },
+        "2": { "name": "entity.name.function.warscript" }
+      }
+    },
+    "class-definition": {
+      "match": "\\b(class)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+      "captures": {
+        "1": { "name": "keyword.control.warscript" },
+        "2": { "name": "entity.name.class.warscript" }
+      }
+    },
+    "function-call": {
+      "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\[)",
+      "captures": {
+        "1": { "name": "entity.name.function.call.warscript" }
+      }
+    },
+    "class-method-call": {
+      "match": "::\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\[)",
+      "captures": {
+        "1": { "name": "entity.name.function.call.warscript" }
+      }
+    },
+    "keyword-control": {
+      "match": "\\b(if|elif|else|end|print|fun|class|return|loop|in|by|break|next|assert|raise|begin|rescue|ensure|import)\\b",
+      "name": "keyword.control.warscript"
+    },
+    "keyword-operator": {
+      "match": "\\b(and|or|not|new|as|is)\\b",
+      "name": "keyword.operator.warscript"
+    },
+    "constant-boolean": {
+      "match": "\\b(true|false)\\b",
+      "name": "constant.language.boolean.warscript"
+    },
+    "constant-null": {
+      "match": "\\bnull\\b",
+      "name": "constant.language.null.warscript"
+    },
+    "variable-this": {
+      "match": "\\bthis\\b",
+      "name": "variable.language.this.warscript"
+    },
+    "operator": {
+      "match": "\\+|-|\\*{1,2}|/{1,2}|%|>=?|<=?|==|!=|!|<<|=",
+      "name": "keyword.operator.warscript"
+    },
+    "range-operator": {
+      "match": "\\.\\.",
+      "name": "keyword.operator.range.warscript"
+    },
+    "class-access-operator": {
+      "match": "::",
+      "name": "keyword.operator.access.warscript"
+    },
+    "variable": {
+      "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b",
+      "name": "variable.other.warscript"
+    }
+  }
+}

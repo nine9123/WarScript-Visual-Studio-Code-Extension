@@ -1,0 +1,80 @@
+{
+  "name": "warscript",
+  "publisher": "warscript",
+  "displayName": "WarScript",
+  "description": "Syntax highlighting, autocomplete, and language support for WarScript",
+  "version": "0.3.0",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:warscript"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "warscript",
+        "aliases": [
+          "WarScript",
+          "warscript"
+        ],
+        "extensions": [
+          ".ws"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "warscript",
+        "scopeName": "source.warscript",
+        "path": "./syntaxes/warscript.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "WarScript",
+      "properties": {
+        "warscript.definitionsPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to warscript-defs.json. Can be absolute or relative to the workspace root."
+        }
+      }
+    },
+    "semanticTokenTypes": [
+      {
+        "id": "nativeFunction",
+        "superType": "function",
+        "description": "A native WarScript API function"
+      },
+      {
+        "id": "eventCallback",
+        "superType": "function",
+        "description": "A native WarScript engine event callback"
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "warscript",
+        "scopes": {
+          "nativeFunction": ["support.function.warscript"],
+          "eventCallback": ["support.function.event.warscript"]
+        }
+      }
+    ],
+    "configurationDefaults": {
+      "editor.semanticTokenColorCustomizations": {
+        "[*]": {
+          "rules": {
+            "nativeFunction:warscript": "#7aafcf",
+            "eventCallback:warscript": "#cf8fdf"
+          }
+        }
+      }
+    }
+  }
+}
