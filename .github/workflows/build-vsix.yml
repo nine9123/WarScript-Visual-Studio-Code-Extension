@@ -1,0 +1,111 @@
+name: Build VSIX
+
+on:
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create a GitHub Release with the VSIX'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      version_override:
+        description: 'Version override (leave empty to use package.json version)'
+        required: false
+        default: ''
+        type: string
+
+# Minimum permissions — only grant what each job actually needs.
+# contents:write  is required to create tags and releases.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Package VSIX
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642195f882d025496ad3e04 # v4.4.0
+        with:
+          node-version: '20'
+
+      - name: Install vsce
+        run: npm install -g @vscode/vsce
+
+      # Validate and apply version override if provided.
+      # The input is passed via an environment variable (never interpolated
+      # into shell or JS code) to prevent code-injection attacks.
+      - name: Override version (if specified)
+        if: ${{ github.event.inputs.version_override != '' }}
+        working-directory: extension
+        env:
+          VERSION_INPUT: ${{ github.event.inputs.version_override }}
+        run: |
+          # Strict semver validation — reject anything that isn't X.Y.Z
+          if ! echo "$VERSION_INPUT" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid version format '$VERSION_INPUT'. Must be semver (e.g. 1.2.3)."
+            exit 1
+          fi
+
+          echo "Overriding version to $VERSION_INPUT"
+
+          # Use node with the value passed through env, not string interpolation
+          node -e '
+            const fs = require("fs");
+            const pkg = JSON.parse(fs.readFileSync("package.json", "utf-8"));
+            pkg.version = process.env.VERSION_INPUT;
+            fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
+          '
+
+      - name: Read and validate version from package.json
+        id: version
+        working-directory: extension
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+
+          # Validate — even the committed version must be clean semver
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::package.json version '$VERSION' is not valid semver (expected X.Y.Z)."
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building WarScript VS Code Extension v$VERSION"
+
+      - name: Package VSIX
+        working-directory: extension
+        env:
+          PKG_VERSION: ${{ steps.version.outputs.version }}
+        run: vsce package --out "../warscript-${PKG_VERSION}.vsix"
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: warscript-${{ steps.version.outputs.version }}.vsix
+          path: warscript-${{ steps.version.outputs.version }}.vsix
+
+      - name: Create GitHub Release
+        if: ${{ github.event.inputs.create_release == 'true' }}
+        uses: softprops/action-gh-release@da05d552573ad5aba039eaac05058a918a7bf631 # v2.2.2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: WarScript Extension v${{ steps.version.outputs.version }}
+          body: |
+            ## WarScript VS Code Extension v${{ steps.version.outputs.version }}
+
+            Install by downloading the `.vsix` file below, then in VS Code:
+            - Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`)
+            - Run **Extensions: Install from VSIX...**
+            - Select the downloaded `.vsix` file
+          files: warscript-${{ steps.version.outputs.version }}.vsix
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

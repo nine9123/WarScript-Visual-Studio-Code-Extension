@@ -4,7 +4,7 @@
   "fileTypes": ["ws"],
   "patterns": [
     { "include": "#comment" },
-    { "include": "#string" },
+    { "include": "#string-interpolation" },
     { "include": "#numeric" },
     { "include": "#function-definition" },
     { "include": "#class-definition" },
@@ -15,9 +15,13 @@
     { "include": "#constant-boolean" },
     { "include": "#constant-null" },
     { "include": "#variable-this" },
+    { "include": "#compound-assignment-operator" },
     { "include": "#operator" },
     { "include": "#range-operator" },
     { "include": "#class-access-operator" },
+    { "include": "#colon-separator" },
+    { "include": "#punctuation-brackets" },
+    { "include": "#punctuation-comma" },
     { "include": "#variable" }
   ],
   "repository": {
@@ -25,15 +29,44 @@
       "match": "#.*$",
       "name": "comment.line.number-sign.warscript"
     },
-    "string": {
+
+    "string-interpolation": {
+      "name": "string.quoted.double.warscript",
       "begin": "\"",
       "end": "\"",
-      "name": "string.quoted.double.warscript"
+      "beginCaptures": {
+        "0": { "name": "punctuation.definition.string.begin.warscript" }
+      },
+      "endCaptures": {
+        "0": { "name": "punctuation.definition.string.end.warscript" }
+      },
+      "patterns": [
+        {
+          "name": "meta.interpolation.warscript",
+          "begin": "\\{",
+          "end": "\\}",
+          "beginCaptures": {
+            "0": { "name": "punctuation.section.interpolation.begin.warscript" }
+          },
+          "endCaptures": {
+            "0": { "name": "punctuation.section.interpolation.end.warscript" }
+          },
+          "patterns": [
+            { "include": "source.warscript" }
+          ]
+        },
+        {
+          "name": "string.quoted.double.warscript",
+          "match": "[^\"{}]+"
+        }
+      ]
     },
+
     "numeric": {
       "match": "(?<![a-zA-Z_])(-?\\b[0-9]+(\\.[0-9]+)?\\b)",
       "name": "constant.numeric.warscript"
     },
+
     "function-definition": {
       "match": "\\b(fun)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
       "captures": {
@@ -41,57 +74,91 @@
         "2": { "name": "entity.name.function.warscript" }
       }
     },
+
     "class-definition": {
-      "match": "\\b(class)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+      "match": "\\b(class)\\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:\\s*(:)\\s*([a-zA-Z_][a-zA-Z0-9_]*))?",
       "captures": {
         "1": { "name": "keyword.control.warscript" },
-        "2": { "name": "entity.name.class.warscript" }
+        "2": { "name": "entity.name.class.warscript" },
+        "3": { "name": "punctuation.separator.inheritance.warscript" },
+        "4": { "name": "entity.other.inherited-class.warscript" }
       }
     },
+
     "function-call": {
       "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\[)",
       "captures": {
         "1": { "name": "entity.name.function.call.warscript" }
       }
     },
+
     "class-method-call": {
       "match": "::\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\[)",
       "captures": {
         "1": { "name": "entity.name.function.call.warscript" }
       }
     },
+
     "keyword-control": {
-      "match": "\\b(if|elif|else|end|print|fun|class|return|loop|in|by|break|next|assert|raise|begin|rescue|ensure|import)\\b",
+      "match": "\\b(if|elif|else|end|print|fun|class|return|loop|in|by|break|next|assert|raise|begin|rescue|ensure|import|yield)\\b",
       "name": "keyword.control.warscript"
     },
+
     "keyword-operator": {
       "match": "\\b(and|or|not|new|as|is)\\b",
       "name": "keyword.operator.warscript"
     },
+
     "constant-boolean": {
       "match": "\\b(true|false)\\b",
       "name": "constant.language.boolean.warscript"
     },
+
     "constant-null": {
       "match": "\\bnull\\b",
       "name": "constant.language.null.warscript"
     },
+
     "variable-this": {
       "match": "\\bthis\\b",
       "name": "variable.language.this.warscript"
     },
+
+    "compound-assignment-operator": {
+      "match": "\\+=|-=|\\*=|/=",
+      "name": "keyword.operator.assignment.compound.warscript"
+    },
+
     "operator": {
-      "match": "\\+|-|\\*{1,2}|/{1,2}|%|>=?|<=?|==|!=|!|<<|=",
+      "match": "\\+|-|\\*|/|%|>=|<=|==|!=|!|<<|>|<|=|\\(|\\)",
       "name": "keyword.operator.warscript"
     },
+
     "range-operator": {
       "match": "\\.\\.",
       "name": "keyword.operator.range.warscript"
     },
+
     "class-access-operator": {
       "match": "::",
       "name": "keyword.operator.access.warscript"
     },
+
+    "colon-separator": {
+      "match": "(?<!:):(?!:)",
+      "name": "punctuation.separator.warscript"
+    },
+
+    "punctuation-brackets": {
+      "match": "[\\[\\]{}()]",
+      "name": "punctuation.bracket.warscript"
+    },
+
+    "punctuation-comma": {
+      "match": ",",
+      "name": "punctuation.separator.comma.warscript"
+    },
+
     "variable": {
       "match": "\\b[a-zA-Z_][a-zA-Z0-9_]*\\b",
       "name": "variable.other.warscript"

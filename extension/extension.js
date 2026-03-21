@@ -6,7 +6,7 @@ let definitions = { functions: [], classes: [] };
 let fileWatcher = null;
 
 // Semantic token types: indices matter — must match the legend order
-const TOKEN_TYPES = ['nativeFunction', 'eventCallback', 'function'];
+const TOKEN_TYPES = ['nativeFunction', 'eventCallback', 'function', 'class'];
 const tokenLegend = new vscode.SemanticTokensLegend(TOKEN_TYPES);
 
 function activate(context) {
@@ -64,6 +64,14 @@ function activate(context) {
         vscode.languages.registerDefinitionProvider(
             'warscript',
             new WarScriptDefinitionProvider()
+        )
+    );
+
+    // Document symbols (Outline / breadcrumbs)
+    context.subscriptions.push(
+        vscode.languages.registerDocumentSymbolProvider(
+            'warscript',
+            new WarScriptDocumentSymbolProvider()
         )
     );
 }
@@ -142,13 +150,31 @@ const KEYWORDS = [
     { label: 'else', detail: 'else branch', snippet: 'else\n\t$0' },
     { label: 'fun', detail: 'function definition', snippet: 'fun ${1:name}[${2:args}]\n\t$0\nend' },
     { label: 'class', detail: 'class definition', snippet: 'class ${1:Name}[${2:properties}]\n\t$0\nend' },
-    { label: 'loop', detail: 'loop statement', snippet: 'loop ${1:i} in ${2:0}..${3:10}\n\t$0\nend' },
+    { label: 'class (inherit)', detail: 'class with inheritance', snippet: 'class ${1:Name} : ${2:Base}[${3:properties}]\n\t$0\nend' },
+    { label: 'loop', detail: 'loop with range', snippet: 'loop ${1:i} in ${2:0}..${3:10}\n\t$0\nend' },
+    { label: 'loop (by step)', detail: 'loop with step', snippet: 'loop ${1:i} in ${2:0}..${3:10} by ${4:2}\n\t$0\nend' },
+    { label: 'loop (iterable)', detail: 'loop over array', snippet: 'loop ${1:item} in ${2:array}\n\t$0\nend' },
     { label: 'return', detail: 'return value', snippet: 'return ${1:value}' },
     { label: 'import', detail: 'import script', snippet: 'import "${1:path}"' },
     { label: 'begin', detail: 'exception handling', snippet: 'begin\n\t$0\nrescue ${1:error}\n\t\nend' },
+    { label: 'begin (ensure)', detail: 'try/rescue/ensure', snippet: 'begin\n\t$0\nrescue ${1:error}\n\t\nensure\n\t\nend' },
     { label: 'print', detail: 'print value', snippet: 'print ${1:value}' },
     { label: 'assert', detail: 'assert condition', snippet: 'assert ${1:condition}' },
     { label: 'raise', detail: 'raise exception', snippet: 'raise ${1:value}' },
+    { label: 'yield', detail: 'yield coroutine', snippet: 'yield' },
+    { label: 'yield wait', detail: 'yield wait seconds', snippet: 'yield wait ${1:seconds}' },
+    { label: 'yield until', detail: 'yield until condition', snippet: 'yield until ${1:condition}' },
+    { label: 'new', detail: 'new class instance', snippet: 'new ${1:ClassName}[${2:args}]' },
+];
+
+// --- Built-in operator keyword completions ---
+
+const OPERATOR_KEYWORDS = [
+    { label: 'and', detail: 'logical AND', doc: 'Returns true if both operands are true' },
+    { label: 'or', detail: 'logical OR', doc: 'Returns true if either operand is true' },
+    { label: 'not', detail: 'logical NOT (prefix: !)', doc: 'Negates a boolean value. Also usable as ! prefix' },
+    { label: 'as', detail: 'type cast', doc: 'Casts an object to another class type: `obj as ClassName`' },
+    { label: 'is', detail: 'instance check', doc: 'Checks if an object is an instance of a class: `obj is ClassName`' },
 ];
 
 // --- Completion provider ---
@@ -162,6 +188,23 @@ class WarScriptCompletionProvider {
             const item = new vscode.CompletionItem(kw.label, vscode.CompletionItemKind.Keyword);
             item.detail = kw.detail;
             item.insertText = new vscode.SnippetString(kw.snippet);
+            items.push(item);
+        }
+
+        // Operator keywords
+        for (const ok of OPERATOR_KEYWORDS) {
+            const item = new vscode.CompletionItem(ok.label, vscode.CompletionItemKind.Operator);
+            item.detail = ok.detail;
+            if (ok.doc) {
+                item.documentation = new vscode.MarkdownString(ok.doc);
+            }
+            items.push(item);
+        }
+
+        // Constant completions
+        for (const c of ['true', 'false', 'null', 'this']) {
+            const item = new vscode.CompletionItem(c, vscode.CompletionItemKind.Constant);
+            item.detail = c === 'this' ? 'current instance reference' : `literal ${c}`;
             items.push(item);
         }
 
@@ -218,8 +261,9 @@ class WarScriptCompletionProvider {
             items.push(item);
         }
 
-        // Variables/functions defined in the current file
+        // Variables/functions/classes defined in the current file
         const text = document.getText();
+
         const funcRegex = /\bfun\s+([a-zA-Z_]\w*)/g;
         let match;
         const seen = new Set(definitions.functions.map(f => f.name));
@@ -247,8 +291,71 @@ class WarScriptCompletionProvider {
             }
         }
 
+        // Class member completions after ::
+        const lineText = document.lineAt(position.line).text;
+        const textBefore = lineText.substring(0, position.character);
+        const memberMatch = textBefore.match(/(\w+)\s*::\s*$/);
+        if (memberMatch) {
+            const varName = memberMatch[1];
+            // Try to find class from constructor: varName = new ClassName[...]
+            const ctorRegex = new RegExp(`\\b${varName}\\s*=\\s*new\\s+(\\w+)\\s*\\[`);
+            const ctorMatch = ctorRegex.exec(text);
+            if (ctorMatch) {
+                const className = ctorMatch[1];
+                // Find class definition and extract properties and methods
+                const classDefRegex = new RegExp(`\\bclass\\s+${className}\\s*(?::\\s*\\w+)?\\s*\\[([^\\]]*)\\]`);
+                const classDefMatch = classDefRegex.exec(text);
+                if (classDefMatch) {
+                    const props = classDefMatch[1].split(',').map(p => p.trim()).filter(p => p);
+                    for (const prop of props) {
+                        const item = new vscode.CompletionItem(prop, vscode.CompletionItemKind.Property);
+                        item.detail = `${className} property`;
+                        items.push(item);
+                    }
+                }
+
+                // Find methods in the class body
+                const classBody = extractClassBody(text, className);
+                if (classBody) {
+                    const methodRegex = /\bfun\s+([a-zA-Z_]\w*)/g;
+                    let mMatch;
+                    while ((mMatch = methodRegex.exec(classBody)) !== null) {
+                        const item = new vscode.CompletionItem(mMatch[1], vscode.CompletionItemKind.Method);
+                        item.detail = `${className} method`;
+                        items.push(item);
+                    }
+                }
+            }
+        }
+
         return items;
     }
+}
+
+/**
+ * Extracts the body text of a class definition (between class header and its matching end).
+ */
+function extractClassBody(text, className) {
+    const regex = new RegExp(`\\bclass\\s+${className}\\b[^\\n]*`);
+    const match = regex.exec(text);
+    if (!match) return null;
+
+    let depth = 1;
+    let pos = match.index + match[0].length;
+    const lines = text.substring(pos).split('\n');
+    const bodyLines = [];
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (/^(if|fun|class|loop|begin)\b/.test(trimmed)) depth++;
+        if (/^end\b/.test(trimmed)) {
+            depth--;
+            if (depth === 0) break;
+        }
+        bodyLines.push(line);
+    }
+
+    return bodyLines.join('\n');
 }
 
 // --- Hover provider ---
@@ -259,6 +366,17 @@ class WarScriptHoverProvider {
         if (!range) return null;
 
         const word = document.getText(range);
+
+        // Built-in keyword documentation
+        const keywordDocs = {
+            'yield': '```warscript\nyield\nyield wait <seconds>\nyield until <condition>\n```\n\nPauses coroutine execution. `yield` suspends until next tick, `yield wait` suspends for a duration, `yield until` suspends until a condition is true.',
+            'as': 'Cast operator. Casts an object to a specified class type.\n\n```warscript\nobj as ClassName\n```',
+            'is': 'Instance-of check. Returns true if an object is an instance of a class.\n\n```warscript\nobj is ClassName\n```',
+            'import': 'Imports and executes another WarScript file.\n\n```warscript\nimport "path/to/file.ws"\n```',
+        };
+        if (keywordDocs[word]) {
+            return new vscode.Hover(new vscode.MarkdownString(keywordDocs[word]));
+        }
 
         // Check native functions
         const fn = definitions.functions.find(f => f.name === word);
@@ -301,6 +419,43 @@ class WarScriptHoverProvider {
             return new vscode.Hover(new vscode.MarkdownString(parts.join('\n\n')));
         }
 
+        // Check local class definitions with properties
+        const text = document.getText();
+        const localClassRegex = new RegExp(`\\bclass\\s+${word}\\s*(?::\\s*(\\w+))?\\s*\\[([^\\]]*)\\]`);
+        const localClassMatch = localClassRegex.exec(text);
+        if (localClassMatch) {
+            const baseClass = localClassMatch[1] || '';
+            const props = localClassMatch[2].split(',').map(p => p.trim()).filter(p => p);
+            const inherit = baseClass ? ` : ${baseClass}` : '';
+            const signature = `class ${word}${inherit}[${props.join(', ')}]`;
+            const parts = [`\`\`\`warscript\n${signature}\n\`\`\``];
+
+            // List methods
+            const body = extractClassBody(text, word);
+            if (body) {
+                const methodNames = [];
+                const mRegex = /\bfun\s+([a-zA-Z_]\w*)\s*\[([^\]]*)\]/g;
+                let mMatch;
+                while ((mMatch = mRegex.exec(body)) !== null) {
+                    methodNames.push(`- \`${mMatch[1]}[${mMatch[2]}]\``);
+                }
+                if (methodNames.length > 0) {
+                    parts.push('**Methods:**\n' + methodNames.join('\n'));
+                }
+            }
+
+            return new vscode.Hover(new vscode.MarkdownString(parts.join('\n\n')));
+        }
+
+        // Check local function definitions with parameters
+        const localFuncRegex = new RegExp(`\\bfun\\s+${word}\\s*\\[([^\\]]*)\\]`);
+        const localFuncMatch = localFuncRegex.exec(text);
+        if (localFuncMatch) {
+            const params = localFuncMatch[1].split(',').map(p => p.trim()).filter(p => p);
+            const signature = `fun ${word}[${params.join(', ')}]`;
+            return new vscode.Hover(new vscode.MarkdownString(`\`\`\`warscript\n${signature}\n\`\`\``));
+        }
+
         return null;
     }
 }
@@ -309,7 +464,6 @@ class WarScriptHoverProvider {
 
 class WarScriptSignatureHelpProvider {
     provideSignatureHelp(document, position) {
-        // Walk backwards from cursor to find the function name and count commas
         const lineText = document.lineAt(position.line).text;
         const textUpToCursor = lineText.substring(0, position.character);
 
@@ -335,8 +489,23 @@ class WarScriptSignatureHelpProvider {
         if (!nameMatch) return null;
 
         const funcName = nameMatch[1];
+
+        // Check native definitions
         const fn = definitions.functions.find(f => f.name === funcName);
-        if (!fn || !fn.args || fn.args.length === 0) return null;
+
+        // If not native, try to find local function definition
+        let args = null;
+        if (fn) {
+            args = fn.args;
+        } else {
+            const text = document.getText();
+            const localMatch = new RegExp(`\\bfun\\s+${funcName}\\s*\\[([^\\]]*)\\]`).exec(text);
+            if (localMatch) {
+                args = localMatch[1].split(',').map(p => p.trim()).filter(p => p);
+            }
+        }
+
+        if (!args || args.length === 0) return null;
 
         // Count commas between the [ and cursor to determine active parameter
         const argsText = textUpToCursor.substring(openBracketPos + 1);
@@ -349,13 +518,13 @@ class WarScriptSignatureHelpProvider {
         }
 
         // Build signature
-        const argLabels = (fn.args || []).map(a =>
+        const argLabels = args.map(a =>
             typeof a === 'string' ? a : `${a.name}: ${a.type}`
         );
 
         const sigInfo = new vscode.SignatureInformation(
-            `${fn.name}[${argLabels.join(', ')}]`,
-            fn.doc || ''
+            `${funcName}[${argLabels.join(', ')}]`,
+            fn?.doc || ''
         );
 
         for (const argLabel of argLabels) {
@@ -407,7 +576,6 @@ class WarScriptSemanticTokensProvider {
         }
 
         // Scan for function calls: name followed by [
-        // Also match "fun name" definitions for event coloring
         const callRegex = /\b([a-zA-Z_]\w*)\s*(?=\[)/g;
         let match;
         while ((match = callRegex.exec(text)) !== null) {
@@ -432,19 +600,55 @@ class WarScriptSemanticTokensProvider {
     }
 }
 
+// --- Document Symbol provider (Outline) ---
+
+class WarScriptDocumentSymbolProvider {
+    provideDocumentSymbols(document) {
+        const symbols = [];
+        const text = document.getText();
+        const lines = text.split('\n');
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+
+            // Match class definitions
+            const classMatch = line.match(/\bclass\s+([a-zA-Z_]\w*)/);
+            if (classMatch) {
+                const name = classMatch[1];
+                const range = new vscode.Range(i, 0, i, line.length);
+                const symbol = new vscode.DocumentSymbol(
+                    name, 'class',
+                    vscode.SymbolKind.Class,
+                    range, range
+                );
+                symbols.push(symbol);
+                continue;
+            }
+
+            // Match function definitions
+            const funcMatch = line.match(/\bfun\s+([a-zA-Z_]\w*)/);
+            if (funcMatch) {
+                const name = funcMatch[1];
+                const range = new vscode.Range(i, 0, i, line.length);
+                const symbol = new vscode.DocumentSymbol(
+                    name, 'function',
+                    vscode.SymbolKind.Function,
+                    range, range
+                );
+                symbols.push(symbol);
+            }
+        }
+
+        return symbols;
+    }
+}
+
 // --- Go to Definition ---
 
-/**
- * Returns the workspace root (scripts folder).
- */
 function getWorkspaceRoot() {
     return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || null;
 }
 
-/**
- * Extracts all import paths from a document's text.
- * Matches: import "lib/common.ws"
- */
 function parseImports(text) {
     const imports = [];
     const regex = /\bimport\s+"([^"]+)"/g;
@@ -455,23 +659,22 @@ function parseImports(text) {
     return imports;
 }
 
-/**
- * Searches a file on disk for `fun <name>` and returns the line number, or -1.
- */
-function findFunctionInFile(filePath, funcName) {
+function findDefinitionInFile(filePath, name) {
     try {
         const content = fs.readFileSync(filePath, 'utf-8');
         const lines = content.split('\n');
-        const pattern = new RegExp(`\\bfun\\s+${funcName}\\b`);
+        // Search for both fun and class definitions
+        const funcPattern = new RegExp(`\\bfun\\s+${name}\\b`);
+        const classPattern = new RegExp(`\\bclass\\s+${name}\\b`);
         for (let i = 0; i < lines.length; i++) {
-            if (pattern.test(lines[i])) {
-                return i;
+            if (funcPattern.test(lines[i]) || classPattern.test(lines[i])) {
+                return { line: i, col: lines[i].indexOf(name) };
             }
         }
     } catch (e) {
         // file not found or unreadable
     }
-    return -1;
+    return null;
 }
 
 class WarScriptDefinitionProvider {
@@ -508,22 +711,25 @@ class WarScriptDefinitionProvider {
             'if', 'elif', 'else', 'end', 'fun', 'class', 'return', 'loop',
             'in', 'by', 'break', 'next', 'print', 'import', 'assert', 'raise',
             'begin', 'rescue', 'ensure', 'and', 'or', 'not', 'new', 'as', 'is',
-            'true', 'false', 'null', 'this'
+            'true', 'false', 'null', 'this', 'yield', 'wait', 'until'
         ]);
         if (keywords.has(word)) return null;
 
-        // If it's a native function/event, there's no source to navigate to
+        // If it's a native function/event or class, there's no source to navigate to
         if (definitions.functions.some(f => f.name === word)) return null;
+        if (definitions.classes.some(c => c.name === word)) return null;
 
         const root = getWorkspaceRoot();
         if (!root) return null;
 
-        // Search current file first
+        // Search current file first (functions and classes)
         const currentText = document.getText();
-        const defPattern = new RegExp(`\\bfun\\s+${word}\\b`);
         const currentLines = currentText.split('\n');
+        const funcPattern = new RegExp(`\\bfun\\s+${word}\\b`);
+        const classPattern = new RegExp(`\\bclass\\s+${word}\\b`);
+
         for (let i = 0; i < currentLines.length; i++) {
-            if (defPattern.test(currentLines[i])) {
+            if (funcPattern.test(currentLines[i]) || classPattern.test(currentLines[i])) {
                 const col = currentLines[i].indexOf(word);
                 return new vscode.Location(
                     document.uri,
@@ -532,17 +738,15 @@ class WarScriptDefinitionProvider {
             }
         }
 
-        // Search imported files (resolved relative to workspace root)
+        // Search imported files
         const importPaths = parseImports(currentText);
         for (const imp of importPaths) {
             const filePath = path.join(root, imp);
-            const lineNum = findFunctionInFile(filePath, word);
-            if (lineNum >= 0) {
-                const content = fs.readFileSync(filePath, 'utf-8');
-                const col = content.split('\n')[lineNum].indexOf(word);
+            const result = findDefinitionInFile(filePath, word);
+            if (result) {
                 return new vscode.Location(
                     vscode.Uri.file(filePath),
-                    new vscode.Position(lineNum, Math.max(0, col))
+                    new vscode.Position(result.line, Math.max(0, result.col))
                 );
             }
         }

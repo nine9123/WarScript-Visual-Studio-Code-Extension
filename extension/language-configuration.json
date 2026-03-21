@@ -29,5 +29,15 @@
     "increaseIndentPattern": "^\\s*(if|elif|else|fun|class|loop|begin|rescue|ensure)\\b",
     "decreaseIndentPattern": "^\\s*(end|elif|else|rescue|ensure)\\b"
   },
+  "onEnterRules": [
+    {
+      "beforeText": "^\\s*(if|elif|else|fun|class|loop|begin|rescue|ensure)\\b.*$",
+      "action": { "indent": "indent" }
+    },
+    {
+      "beforeText": "^\\s*end\\b.*$",
+      "action": { "indent": "outdent" }
+    }
+  ],
   "wordPattern": "[a-zA-Z_][a-zA-Z0-9_]*"
 }

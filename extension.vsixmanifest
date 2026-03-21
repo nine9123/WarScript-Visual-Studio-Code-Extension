@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 	<PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
 		<Metadata>
-			<Identity Language="en-US" Id="warscript" Version="0.3.0" Publisher="warscript" />
+			<Identity Language="en-US" Id="warscript" Version="0.4.0" Publisher="warscript" />
 			<DisplayName>WarScript</DisplayName>
 			<Description xml:space="preserve">Syntax highlighting, autocomplete, and language support for WarScript</Description>
 			<Tags>warscript,WarScript,__ext_ws</Tags>

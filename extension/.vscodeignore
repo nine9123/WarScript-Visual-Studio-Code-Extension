@@ -1,0 +1,8 @@
+.github/**
+.idea/**
+.git/**
+.gitignore
+.DS_Store
+**/.DS_Store
+**/__MACOSX/**
+*.vsix

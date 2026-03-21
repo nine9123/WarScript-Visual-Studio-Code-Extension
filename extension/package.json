@@ -3,7 +3,7 @@
   "publisher": "warscript",
   "displayName": "WarScript",
   "description": "Syntax highlighting, autocomplete, and language support for WarScript",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "engines": {
     "vscode": "^1.75.0"
   },
