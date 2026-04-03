@@ -21,17 +21,17 @@
   ],
   "folding": {
     "markers": {
-      "start": "^\\s*(if|fun|class|loop|begin)\\b",
+      "start": "^\\s*(if|fun|class|loop|begin|enum)\\b",
       "end": "^\\s*end\\b"
     }
   },
   "indentationRules": {
-    "increaseIndentPattern": "^\\s*(if|elif|else|fun|class|loop|begin|rescue|ensure)\\b",
+    "increaseIndentPattern": "^\\s*(if|elif|else|fun|class|loop|begin|rescue|ensure|enum)\\b",
     "decreaseIndentPattern": "^\\s*(end|elif|else|rescue|ensure)\\b"
   },
   "onEnterRules": [
     {
-      "beforeText": "^\\s*(if|elif|else|fun|class|loop|begin|rescue|ensure)\\b.*$",
+      "beforeText": "^\\s*(if|elif|else|fun|class|loop|begin|rescue|ensure|enum)\\b.*$",
       "action": { "indent": "indent" }
     },
     {

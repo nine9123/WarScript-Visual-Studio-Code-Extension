@@ -3,7 +3,7 @@
   "publisher": "warscript",
   "displayName": "WarScript",
   "description": "Syntax highlighting, autocomplete, and language support for WarScript",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "engines": {
     "vscode": "^1.75.0"
   },
@@ -52,9 +52,14 @@
         "description": "A native WarScript API function"
       },
       {
-        "id": "eventCallback",
-        "superType": "function",
-        "description": "A native WarScript engine event callback"
+        "id": "enumType",
+        "superType": "type",
+        "description": "A WarScript enum type"
+      },
+      {
+        "id": "constName",
+        "superType": "variable",
+        "description": "A WarScript constant"
       }
     ],
     "semanticTokenScopes": [
@@ -62,7 +67,8 @@
         "language": "warscript",
         "scopes": {
           "nativeFunction": ["support.function.warscript"],
-          "eventCallback": ["support.function.event.warscript"]
+          "enumType": ["entity.name.type.enum.warscript"],
+          "constName": ["variable.other.constant.warscript"]
         }
       }
     ],
@@ -71,7 +77,8 @@
         "[*]": {
           "rules": {
             "nativeFunction:warscript": "#7aafcf",
-            "eventCallback:warscript": "#cf8fdf"
+            "enumType:warscript": "#4ec9b0",
+            "constName:warscript": "#d4a843"
           }
         }
       }
